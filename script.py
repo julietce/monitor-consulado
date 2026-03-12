@@ -8,15 +8,15 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 URL = "https://www.exteriores.gob.es/Consulados/buenosaires/es/Comunicacion/Noticias/Paginas/Articulos/202200907_NOT02.aspx"
 
 def send_msg():
-    # Usamos formato HTML para embeber el link
-    # El <b> lo pone en negrita y <a href="..."> el link en el texto
-    texto_html = f'🚨 <b>¡Habilitados nuevos IDUs en el Consulado!</b>\n\n<a href="{URL}">Clic aquí para acceder</a>'
+    # Usamos MarkdownV2 que a veces gestiona mejor los clics directos
+    # IMPORTANTE: En MarkdownV2 hay que escapar los puntos y guiones con \
+    text = "🚨 *¡Habilitados nuevos IDUs en el Consulado!*\n\n[Clic aquí para acceder](https://www.exteriores.gob.es/Consulados/buenosaires/es/Comunicacion/Noticias/Paginas/Articulos/202200907_NOT02.aspx)"
     
     telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID, 
-        "text": texto_html,
-        "parse_mode": "HTML",
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown", # Usamos Markdown simple para evitar errores de escape
         "disable_web_page_preview": False
     }
     
@@ -24,7 +24,7 @@ def send_msg():
         with httpx.Client() as client:
             client.post(telegram_url, json=payload)
     except Exception as e:
-        print(f"Error enviando a Telegram: {e}")
+        print(f"Error: {e}")
 
 def check_site():
     headers = {
