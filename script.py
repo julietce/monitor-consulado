@@ -45,7 +45,7 @@ def check_site():
                         old_hash = f.read().strip()
                 
                 # COMPARACIÓN REAL (Solo avisa si hay cambios)
-                if current_hash != old_hash:
+                if True: # current_hash != old_hash:
                     with open("last_hash.txt", "w") as f:
                         f.write(current_hash)
                     
