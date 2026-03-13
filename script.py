@@ -1,29 +1,4 @@
-import httpx
-import hashlib
-import os
-
-# Configuración desde variables de entorno de GitHub
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-URL = "https://www.exteriores.gob.es/Consulados/buenosaires/es/Comunicacion/Noticias/Paginas/Articulos/202200907_NOT02.aspx"
-
-def send_msg():
-    # Volvemos al formato HTML que es el más robusto para links largos
-    texto_html = f'🚨 <b>¡Habilitados nuevos IDUs en el Consulado!</b>\n\n<a href="{URL}">Clic aquí para acceder</a>'
-    
-    telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID, 
-        "text": texto_html,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": False
-    }
-    
-    try:
-        with httpx.Client() as client:
-            client.post(telegram_url, json=payload)
-    except Exception as e:
-        print(f"Error enviando a Telegram: {e}")
+import re  # Agrega esta línea al principio del archivo con los otros import
 
 def check_site():
     headers = {
@@ -34,29 +9,40 @@ def check_site():
         with httpx.Client(headers=headers, timeout=20.0) as client:
             response = client.get(URL)
             if response.status_code == 200:
-                current_content = response.text
-                current_hash = hashlib.sha256(current_content.encode()).hexdigest()
+                content = response.text
                 
-                # Leer memoria del último cambio
-                old_hash = ""
-                if os.path.exists("last_hash.txt"):
-                    with open("last_hash.txt", "r") as f:
-                        old_hash = f.read().strip()
+                # BUSCADOR DE EXPEDIENTES:
+                # Busca el formato NW-202 seguido de cualquier número o guion
+                match = re.search(r"NW-202\d-\d+", content)
                 
-                # COMPARACIÓN REAL (Solo avisa si hay cambios)
-                if current_hash != old_hash:
-                    with open("last_hash.txt", "w") as f:
-                        f.write(current_hash)
+                if match:
+                    current_idu_range = match.group(0) # Esto captura algo como "NW-2026-001234"
+                    print(f"Rango detectado actual: {current_idu_range}")
                     
-                    send_msg()
-                    print("Cambio detectado y mensaje enviado.")
-                    return True
+                    # Usamos el rango de IDUs como nuestra "huella digital"
+                    current_hash = current_idu_range 
+                    
+                    old_hash = ""
+                    if os.path.exists("last_hash.txt"):
+                        with open("last_hash.txt", "r") as f:
+                            old_hash = f.read().strip()
+                    
+                    # Solo avisa si el NUMERO DE EXPEDIENTE cambió
+                    if current_hash != old_hash:
+                        with open("last_hash.txt", "w") as f:
+                            f.write(current_hash)
+                        
+                        # Personalizamos el mensaje con el nuevo rango detectado
+                        mensaje = f"🚨 <b>¡Nuevos IDUs habilitados!</b>\n\nActualizado hasta: <code>{current_idu_range}</code>\n\n<a href='{URL}'>Clic aquí para acceder</a>"
+                        send_msg(mensaje) # Asegúrate que tu función send_msg acepte un texto o usa la fija
+                        return True
                 else:
-                    print("Sin cambios en la página.")
+                    print("No se encontró ningún patrón de expediente NW-202X.")
             else:
-                print(f"Error de acceso: Código {response.status_code}")
+                print(f"Error: {response.status_code}")
     except Exception as e:
-        print(f"Error en el monitoreo: {e}")
+        print(f"Error: {e}")
+    return False
     return False
 
 if __name__ == "__main__":
