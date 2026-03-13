@@ -5,10 +5,9 @@ import os
 # Configuración desde variables de entorno de GitHub
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-URL = "https://www.exteriores.gob.es/Consulados/buenosaires/es/Comunicacion/Noticias/Paginas/Articulos/202200907_NOT02.aspx"
+URL = "https://www.exteriores.gob.es/Consulados/buenosaires/es/Communication/Noticias/Paginas/Articulos/202200907_NOT02.aspx"
 
 def send_msg(texto_para_enviar):
-    """Envía el mensaje formateado a Telegram"""
     telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID, 
@@ -16,7 +15,6 @@ def send_msg(texto_para_enviar):
         "parse_mode": "HTML",
         "disable_web_page_preview": False
     }
-    
     try:
         with httpx.Client() as client:
             client.post(telegram_url, json=payload)
@@ -29,49 +27,43 @@ def check_site():
     }
     
     try:
-        # Usamos una versión compatible de httpx
         with httpx.Client(headers=headers, timeout=20.0, follow_redirects=True) as client:
             response = client.get(URL)
             
             if response.status_code == 200:
                 content = response.text
                 
-                # BUSCADOR: Busca el patrón NW- seguido de años y números (ej: NW-2024-000123)
-                # El patrón \d+ busca uno o más dígitos después del guion
-                match = re.search(r"NW-\d{4}-\d+", content)
+                # Buscamos TODOS los patrones que parezcan expedientes
+                matches = re.findall(r"NW-\d{4}-\d+", content)
                 
-                if match:
-                    current_idu = match.group(0)
-                    print(f"IDU detectado actualmente: {current_idu}")
+                # El "Hasta" suele ser el segundo expediente mencionado en el texto relevante
+                if len(matches) >= 2:
+                    current_hasta = matches[1] # Captura el SEGUNDO encuentro
+                    print(f"Límite 'Hasta' detectado: {current_hasta}")
                     
-                    # Leer la memoria (el IDU anterior guardado)
                     old_idu = ""
                     if os.path.exists("last_hash.txt"):
                         with open("last_hash.txt", "r") as f:
                             old_idu = f.read().strip()
                     
-                    # COMPARACIÓN: Solo si el número de expediente es diferente al guardado
-                    if current_idu != old_idu:
-                        # Guardamos el nuevo número directamente (sin encriptar)
+                    if current_hasta != old_idu:
                         with open("last_hash.txt", "w") as f:
-                            f.write(current_idu)
+                            f.write(current_hasta)
                         
-                        # Armamos el mensaje profesional
                         mensaje = (
-                            f"🚨 <b>¡Habilitados nuevos IDUs en el Consulado!</b>\n\n"
-                            f"✅ Actualizado hasta: <code>{current_idu}</code>\n\n"
+                            f"🚨 <b>¡Nuevos IDUs habilitados!</b>\n\n"
+                            f"📍 <b>Habilitado HASTA:</b> <code>{current_hasta}</code>\n\n"
                             f"<a href='{URL}'>Clic aquí para acceder a la web oficial</a>"
                         )
                         
                         send_msg(mensaje)
-                        print(f"Cambio detectado: de {old_idu} a {current_idu}. Mensaje enviado.")
                         return True
                     else:
-                        print(f"Sin cambios. El IDU {current_idu} ya fue notificado.")
+                        print(f"Sin cambios. El límite {current_hasta} ya fue notificado.")
                 else:
-                    print("No se encontró ningún patrón de expediente NW-XXXX en la página.")
+                    print("No se encontraron suficientes expedientes para determinar el 'Hasta'.")
             else:
-                print(f"Error de acceso a la web: Código {response.status_code}")
+                print(f"Error de acceso: {response.status_code}")
                 
     except Exception as e:
         print(f"Error en el monitoreo: {e}")
